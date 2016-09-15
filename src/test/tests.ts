@@ -108,6 +108,13 @@ describe('SubscriptionManager', function() {
           'Trigger2': () => true,
         };
       },
+      'testAsyncFilter': (options, { filterBoolean }) => {
+        return {
+          'Filter1': (root) => new Promise(resolve => process.nextTick(() =>
+            resolve(root.filterBoolean === filterBoolean)
+          )),
+        };
+      },
     },
     pubsub: new PubSub(),
    });
@@ -176,6 +183,32 @@ describe('SubscriptionManager', function() {
       subManager.unsubscribe(subId);
     });
   });
+
+  it('can use async filter functions properly', function(done) {
+    const query = `subscription Filter1($filterBoolean: Boolean){
+       testAsyncFilter(filterBoolean: $filterBoolean)
+      }`;
+    const callback = function(err, payload){
+      try {
+        expect(payload.data.testFilter).to.equals('goodFilter');
+      } catch (e) {
+        done(e);
+        return;
+      }
+      done();
+    };
+    subManager.subscribe({
+      query,
+      operationName: 'Filter1',
+      variables: { filterBoolean: true},
+      callback,
+    }).then(subId => {
+      subManager.publish('Filter1', {filterBoolean: false });
+      subManager.publish('Filter1', {filterBoolean: true });
+      subManager.unsubscribe(subId);
+    });
+  });
+
 
   it('can subscribe to more than one trigger', function(done) {
     // I also used this for testing arg parsing (with console.log)
